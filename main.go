@@ -233,12 +233,12 @@ func HttpRequest(w http.ResponseWriter, r *http.Request) {
 			formItems := r.MultipartForm.File["file"]
 			for i, item := range formItems {
 				src, err := item.Open()
-				defer src.Close()
 				if err != nil {
 					log.Printf("Failed Read UploadFile: %+v", item)
 					http.Error(w, "Failed Read UploadFile", http.StatusNoContent)
 					return
 				}
+				defer src.Close()
 
 				savePath := filepath.Join(*fileDirectory, name, r.URL.Path, item.Filename)
 				for i := 1; true; i++ {
@@ -252,12 +252,12 @@ func HttpRequest(w http.ResponseWriter, r *http.Request) {
 					savePath = fmt.Sprintf("%s__%s", savePath, r.MultipartForm.Value["pass"][i])
 				}
 				dst, err := os.Create(savePath)
-				defer dst.Close()
 				if err != nil {
 					log.Printf("Failed Save UploadFile: %v", item)
 					http.Error(w, "Failed Save UploadFile", http.StatusNoContent)
 					return
 				}
+				defer dst.Close()
 
 				io.Copy(dst, src)
 				log.Println("Upload File is Saved.", savePath)
