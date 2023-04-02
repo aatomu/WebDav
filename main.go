@@ -26,9 +26,10 @@ type User struct {
 }
 
 type File struct {
-	Name       string `json:"name"`
-	IsDir      bool   `json:"dir"`
-	IsPassword bool   `json:"password"`
+	Name      string `json:"name"`
+	Path      string `json:"path"`
+	Extension string `json:"extension"`
+	Date      string `json:"date"`
 }
 
 var (
@@ -110,6 +111,7 @@ func main() {
 }
 
 func HttpRequest(w http.ResponseWriter, r *http.Request) {
+	parent := filepath.Join(*fileDirectory, "Share")
 	// Basic Auth
 	if *enableBasic {
 		w.Header().Set("WWW-Authenticate", `Basic realm="Check Login User"`)
@@ -152,45 +154,73 @@ func HttpRequest(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// create dir
-		_, err = os.Stat(filepath.Join(*fileDirectory, username))
+		parent = filepath.Join(*fileDirectory, username)
+		_, err = os.Stat(parent)
 		if err != nil {
-			err := os.Mkdir(filepath.Join(*fileDirectory, username), 0777)
+			err := os.Mkdir(parent, 0777)
 			if err != nil {
-				log.Printf("Failed Create Dir(%s): %v", filepath.Join(*fileDirectory, username), err)
+				log.Printf("Failed Create Dir(%s): %v", parent, err)
 				http.Error(w, "Failed Create User Dir", http.StatusUnauthorized)
+				return
 			}
 		}
-
-		r.URL.Path = filepath.Join(username, r.URL.Path)
 	}
 
 	if r.Header.Get("Depth") == "" { // Browser Check?
 		if r.Method == http.MethodGet {
-			// Read Folder
-			files, err := os.ReadDir(filepath.Join(*fileDirectory, r.URL.Path))
+			// Check Request File
+			requestFile, err := os.Stat(filepath.Join(parent, r.URL.Path))
 			if err != nil {
-				log.Printf("Failed Read Directory(%s): %v", filepath.Join(*configs, "template.html"), err)
+				log.Printf("Failed Read Directory/File(%s): %v", filepath.Join(*configs, "template.html"), err)
 				http.Error(w, "Failed Read Dir/File", http.StatusNotFound)
 			}
-			var directoryFiles []File
-			for _, file := range files {
-				directoryFiles = append(directoryFiles, File{
-					Name:  file.Name(),
-					IsDir: file.IsDir(),
-				})
+
+			// Read Directory
+			if requestFile.IsDir() {
+				files, err := os.ReadDir(filepath.Join(parent, r.URL.Path))
+				if err != nil {
+					log.Printf("Failed Read Directory(%s): %v", filepath.Join(*configs, "template.html"), err)
+					http.Error(w, "Failed Read Dir/File", http.StatusNotFound)
+					return
+				}
+				var directoryFiles []File
+				for _, f := range files {
+					fileStatus, _ := os.Stat(filepath.Join(parent, r.URL.Path, f.Name()))
+					fileInfo := File{
+						Name:      f.Name(),
+						Path:      filepath.Join(r.URL.Path, f.Name()),
+						Extension: filepath.Ext(f.Name()),
+						Date:      fileStatus.ModTime().Format("2006/01/02-15:04:05"),
+					}
+					if f.IsDir() {
+						fileInfo.Extension = "Directory"
+					}
+					directoryFiles = append(directoryFiles, fileInfo)
+				}
+
+				// Result File Create
+				temp, err := os.ReadFile(filepath.Join(*configs, "template.html"))
+				if err != nil {
+					log.Printf("Failed Read File(%s): %v", filepath.Join(*configs, "template.html"), err)
+					http.Error(w, "Failed Read Dir/File", http.StatusNotFound)
+					return
+				}
+				indexFile := string(temp)
+				directoryFilesBytes, _ := json.Marshal(directoryFiles)
+				indexFile = strings.Replace(indexFile, "${files}", string(directoryFilesBytes), 1)
+				// Return
+				w.Write([]byte(indexFile))
+				return
 			}
 
-			// Result File Create
-			temp, err := os.ReadFile(filepath.Join(*configs, "template.html"))
+			// Not Directory
+			f, err := os.ReadFile(filepath.Join(parent, r.URL.Path))
 			if err != nil {
 				log.Printf("Failed Read File(%s): %v", filepath.Join(*configs, "template.html"), err)
 				http.Error(w, "Failed Read Dir/File", http.StatusNotFound)
+				return
 			}
-			indexFile := string(temp)
-			directoryFilesBytes, _ := json.Marshal(directoryFiles)
-			indexFile = strings.Replace(indexFile, "${files}", string(directoryFilesBytes), 1)
-			// Return
-			w.Write([]byte(indexFile))
+			w.Write(f)
 			return
 		}
 	}

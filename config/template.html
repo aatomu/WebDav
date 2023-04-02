@@ -1,14 +1,61 @@
 <!DOCTYPE html>
 <html>
-  <head >
-    <meta charset="utf-8">
-    <title>WebDav</title>
-    <style>
-    </style>
-  </head>
-  <body>
-  </body>
-  <script>
-    index = `${files}`
+
+<head>
+  <meta charset="utf-8">
+  <title>WebDav</title>
+  <style>
+    .center {
+      height: 100%;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: nowrap;
+    }
+
+    table,
+    td {
+      border: 1px solid #333;
+      width: 50ch;
+    }
+
+    thead {
+      background-color: #333;
+      color: #fff;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="center">
+    <table>
+      <thead>
+        <tr>
+          <td>File Name</td>
+          <td>Extension</td>
+          <td>Date</td>
+        </tr>
+      </thead>
+      <tbody id="list">
+      </tbody>
+    </table>
+  </div>
+</body>
+<script>
+  const index = `${files}`
+  const files = JSON.parse(index)
+  for (i = 0; i < files.length; i++) {
+    file = files[i]
+    document.getElementById("list").innerHTML += `
+    <tr>
+      <td><a href="${file.path}">${file.name}</a></td>
+      <td>${file.extension}</td>
+      <td>${file.date}</td>
+    </tr>
+    `
+  }
 </script>
+
 </html>
