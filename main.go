@@ -184,6 +184,19 @@ func HttpRequest(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				var directoryFiles []File
+				// Root
+				directoryFiles = append(directoryFiles, File{
+					Name:      "/",
+					Path:      "/",
+					Extension: "Directory",
+				})
+				// Parent
+				directoryFiles = append(directoryFiles, File{
+					Name:      "../",
+					Path:      "../",
+					Extension: "Directory",
+				})
+				// Directory Files
 				for _, f := range files {
 					fileStatus, _ := os.Stat(filepath.Join(parent, r.URL.Path, f.Name()))
 					fileInfo := File{
@@ -193,6 +206,7 @@ func HttpRequest(w http.ResponseWriter, r *http.Request) {
 						Date:      fileStatus.ModTime().Format("2006/01/02-15:04:05"),
 					}
 					if f.IsDir() {
+						fileInfo.Name += "/"
 						fileInfo.Extension = "Directory"
 					}
 					directoryFiles = append(directoryFiles, fileInfo)
@@ -220,6 +234,9 @@ func HttpRequest(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "Failed Read Dir/File", http.StatusNotFound)
 				return
 			}
+			w.Header().Add("Content-Type", "application/force-download")
+			w.Header().Add("Content-Length", fmt.Sprintf("%d", len(f)))
+			w.Header().Add("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filepath.Base(r.URL.Path)))
 			w.Write(f)
 			return
 		}
