@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"flag"
@@ -11,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"golang.org/x/net/webdav"
@@ -23,6 +23,12 @@ type Users struct {
 type User struct {
 	Name     string `json:"name"`
 	Password string `json:"password"` // SHA256で暗号化保存すること
+}
+
+type File struct {
+	Name       string `json:"name"`
+	IsDir      bool   `json:"dir"`
+	IsPassword bool   `json:"password"`
 }
 
 var (
@@ -148,22 +154,44 @@ func HttpRequest(w http.ResponseWriter, r *http.Request) {
 		// create dir
 		_, err = os.Stat(filepath.Join(*fileDirectory, username))
 		if err != nil {
-			err := os.Mkdir(filepath.Join(*fileDirectory, username), 0660)
+			err := os.Mkdir(filepath.Join(*fileDirectory, username), 0777)
 			if err != nil {
 				log.Printf("Failed Create Dir(%s): %v", filepath.Join(*fileDirectory, username), err)
 				http.Error(w, "Failed Create User Dir", http.StatusUnauthorized)
 			}
 		}
 
-		r.URL.Path += username
+		r.URL.Path = filepath.Join(username, r.URL.Path)
 	}
 
 	if r.Header.Get("Depth") == "" { // Browser Check?
 		if r.Method == http.MethodGet {
-			info, err := webdavHandler.FileSystem.Stat(context.TODO(), r.URL.Path)
-			if err == nil && info.IsDir() {
-				r.Method = "PROPFIND"
+			// Read Folder
+			files, err := os.ReadDir(filepath.Join(*fileDirectory, r.URL.Path))
+			if err != nil {
+				log.Printf("Failed Read Directory(%s): %v", filepath.Join(*configs, "template.html"), err)
+				http.Error(w, "Failed Read Dir/File", http.StatusNotFound)
 			}
+			var directoryFiles []File
+			for _, file := range files {
+				directoryFiles = append(directoryFiles, File{
+					Name:  file.Name(),
+					IsDir: file.IsDir(),
+				})
+			}
+
+			// Result File Create
+			temp, err := os.ReadFile(filepath.Join(*configs, "template.html"))
+			if err != nil {
+				log.Printf("Failed Read File(%s): %v", filepath.Join(*configs, "template.html"), err)
+				http.Error(w, "Failed Read Dir/File", http.StatusNotFound)
+			}
+			indexFile := string(temp)
+			directoryFilesBytes, _ := json.Marshal(directoryFiles)
+			indexFile = strings.Replace(indexFile, "${files}", string(directoryFilesBytes), 1)
+			// Return
+			w.Write([]byte(indexFile))
+			return
 		}
 	}
 
