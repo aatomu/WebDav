@@ -33,7 +33,7 @@
   <div class="center">
     <div>
       <input type="file" id="uploadFile" name="uploadFile"><input type="text" id="password" name="password"
-        placeholder="Enter Your Password"><br>
+        placeholder="Enter Your Password" ${allowPassword}><br>
       <input type="button" id="upload" value="アップロード"><br>
       <progress value="0" id="progressBar" max=100></progress>(<span id="progress" style="color:#00b200">0%</span>)
       Message:<span id="message"></span>
@@ -58,8 +58,8 @@
     let formData = new FormData();
     let uploadFile = document.getElementById("uploadFile")
     formData.append("file", uploadFile.files[0]);
-    let password = document.getElementById("uploadFile")
-    formData.append("text", password.value);
+    let password = document.getElementById("password")
+    formData.append("pass", password.value);
     let progressBar = document.getElementById('progressBar');
     let progress = document.getElementById('progress');
     let message = document.getElementById('message');

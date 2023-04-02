@@ -242,6 +242,11 @@ func HttpRequest(w http.ResponseWriter, r *http.Request) {
 				indexFile := string(temp)
 				directoryFilesBytes, _ := json.Marshal(directoryFiles)
 				indexFile = strings.Replace(indexFile, "${files}", string(directoryFilesBytes), 1)
+				if *enableBasic {
+					indexFile = strings.Replace(indexFile, "${files}", "disable", 1)
+				} else {
+					indexFile = strings.Replace(indexFile, "${files}", "", 1)
+				}
 				// Return
 				w.Write([]byte(indexFile))
 				return
@@ -263,7 +268,7 @@ func HttpRequest(w http.ResponseWriter, r *http.Request) {
 		case http.MethodPost:
 			r.ParseMultipartForm(maxMemory)
 			formItems := r.MultipartForm.File["file"]
-			for _, item := range formItems {
+			for i, item := range formItems {
 				src, err := item.Open()
 				defer src.Close()
 				if err != nil {
@@ -279,6 +284,9 @@ func HttpRequest(w http.ResponseWriter, r *http.Request) {
 						break
 					}
 					savePath = filepath.Join(*fileDirectory, name, r.URL.Path, fmt.Sprintf("%s-%d%s", filepath.Base(item.Filename[:len(item.Filename)-len(filepath.Ext(item.Filename))]), i, filepath.Ext(item.Filename)))
+				}
+				if !*enableBasic {
+					savePath = fmt.Sprintf("%s__%s", savePath, r.MultipartForm.Value["pass"][i])
 				}
 				dst, err := os.Create(savePath)
 				defer dst.Close()
