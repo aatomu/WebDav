@@ -31,6 +31,13 @@
 
 <body>
   <div class="center">
+    <div>
+      <input type="file" id="uploadFile" name="uploadFile"><input type="text" id="password" name="password"
+        placeholder="Enter Your Password"><br>
+      <input type="button" id="upload" value="アップロード"><br>
+      <progress value="0" id="progressBar" max=100></progress>(<span id="progress" style="color:#00b200">0%</span>)
+      Message:<span id="message"></span>
+    </div>
     <table>
       <thead>
         <tr>
@@ -46,6 +53,36 @@
   </div>
 </body>
 <script>
+  // アップロード進捗
+  document.getElementById("upload").addEventListener("click", function () {
+    let formData = new FormData();
+    let uploadFile = document.getElementById("uploadFile")
+    formData.append("file", uploadFile.files[0]);
+    let password = document.getElementById("uploadFile")
+    formData.append("text", password.value);
+    let progressBar = document.getElementById('progressBar');
+    let progress = document.getElementById('progress');
+    let message = document.getElementById('message');
+    let xhr = new XMLHttpRequest();
+    xhr.open("POST", window.location.href)
+    xhr.addEventListener('load', function () {
+      if (xhr.status == "200") {
+        window.location.reload()
+      }
+      message.innerText = `Loaded: ${xhr.status} ${xhr.response}`
+    })
+    xhr.addEventListener('error', function () {
+      message.innerText = `Error: Network Error / Unkown URL`
+    })
+    xhr.addEventListener('progress', function (e) {
+      let progressParsent = parseInt(e.loaded / e.total * 10000) / 100;
+      progressBar.value = progressParsent;
+      progress.innerHTML = `${progressParsent}%`;
+    })
+    xhr.send(formData)
+  })
+
+  // 一覧表示
   const index = `${files}`
   const files = JSON.parse(index)
   for (i = 0; i < files.length; i++) {
@@ -56,8 +93,7 @@
       <td>${file.extension}</td>
       <td>${file.date}</td>
       <td>${file.size}</td>
-    </tr>
-    `
+    </tr>`
   }
 </script>
 

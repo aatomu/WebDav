@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -50,7 +51,8 @@ var (
 		},
 	}
 	// おまけ
-	password = flag.String("pass", "", "Password to SHA256")
+	password        = flag.String("pass", "", "Password to SHA256")
+	maxMemory int64 = *flag.Int64("ram", 512000000, "Post Max")
 )
 
 func main() {
@@ -166,10 +168,23 @@ func HttpRequest(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		name = username
+	} else {
+		// No User Mode(No Basic Auth Mode)
+		parent := filepath.Join(*fileDirectory, name)
+		_, err := os.Stat(parent)
+		if err != nil {
+			err := os.Mkdir(parent, 0777)
+			if err != nil {
+				log.Printf("Failed Create Dir(%s): %v", parent, err)
+				http.Error(w, "Failed Create User Dir", http.StatusUnauthorized)
+				return
+			}
+		}
 	}
 
 	if r.Header.Get("Translate") != "f" { // Browser Check?
-		if r.Method == http.MethodGet {
+		switch r.Method {
+		case http.MethodGet:
 			path := filepath.Join(*fileDirectory, name, r.URL.Path)
 			// Check Request File
 			requestFile, err := os.Stat(path)
@@ -245,10 +260,47 @@ func HttpRequest(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(200)
 			w.Write(f)
 			return
+		case http.MethodPost:
+			r.ParseMultipartForm(maxMemory)
+			formItems := r.MultipartForm.File["file"]
+			for _, item := range formItems {
+				src, err := item.Open()
+				defer src.Close()
+				if err != nil {
+					log.Printf("Failed Read UploadFile: %+v", item)
+					http.Error(w, "Failed Read UploadFile", http.StatusNoContent)
+					return
+				}
+
+				savePath := filepath.Join(*fileDirectory, name, r.URL.Path, item.Filename)
+				for i := 1; true; i++ {
+					_, err := os.Stat(savePath)
+					if err != nil {
+						break
+					}
+					savePath = filepath.Join(*fileDirectory, name, r.URL.Path, fmt.Sprintf("%s-%d%s", filepath.Base(item.Filename[:len(item.Filename)-len(filepath.Ext(item.Filename))]), i, filepath.Ext(item.Filename)))
+				}
+				dst, err := os.Create(savePath)
+				defer dst.Close()
+				if err != nil {
+					log.Printf("Failed Save UploadFile: %v", item)
+					http.Error(w, "Failed Save UploadFile", http.StatusNoContent)
+					return
+				}
+
+				io.Copy(dst, src)
+				log.Println("Upload File is Saved.", savePath)
+			}
+			w.WriteHeader(200)
+			return
+		default:
+			log.Println("Unknown Method", r.Method)
 		}
 	} else {
 		r.URL.Path = filepath.Join(name, r.URL.Path)
 	}
 
-	webdavHandler.ServeHTTP(w, r)
+	if !*enableBasic {
+		webdavHandler.ServeHTTP(w, r)
+	}
 }
