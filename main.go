@@ -271,7 +271,7 @@ func HttpRequest(w http.ResponseWriter, r *http.Request) {
 		r.URL.Path = filepath.Join(name, r.URL.Path)
 	}
 
-	if !*enableBasic {
+	if *enableBasic {
 		webdavHandler.ServeHTTP(w, r)
 	}
 }
