@@ -19,6 +19,7 @@
     td {
       border: 1px solid #333;
       width: 50ch;
+      white-space: nowrap;
     }
 
     thead {
@@ -36,6 +37,7 @@
           <td>File Name</td>
           <td>Extension</td>
           <td>Date</td>
+          <td>Size</td>
         </tr>
       </thead>
       <tbody id="list">
@@ -53,6 +55,7 @@
       <td><a href="${file.path}">${file.name}</a></td>
       <td>${file.extension}</td>
       <td>${file.date}</td>
+      <td>${file.size}</td>
     </tr>
     `
   }

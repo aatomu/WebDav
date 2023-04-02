@@ -30,6 +30,7 @@ type File struct {
 	Path      string `json:"path"`
 	Extension string `json:"extension"`
 	Date      string `json:"date"`
+	Size      int64  `json:"size"`
 }
 
 var (
@@ -111,13 +112,13 @@ func main() {
 }
 
 func HttpRequest(w http.ResponseWriter, r *http.Request) {
-	parent := filepath.Join(*fileDirectory, "Share")
+	name := "Share"
 	// Basic Auth
 	if *enableBasic {
 		w.Header().Set("WWW-Authenticate", `Basic realm="Check Login User"`)
 		username, password, authOK := r.BasicAuth()
 
-		if !authOK {
+		if !authOK || username == name {
 			http.Error(w, "Not authorized", http.StatusUnauthorized)
 			return
 		}
@@ -154,7 +155,7 @@ func HttpRequest(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// create dir
-		parent = filepath.Join(*fileDirectory, username)
+		parent := filepath.Join(*fileDirectory, username)
 		_, err = os.Stat(parent)
 		if err != nil {
 			err := os.Mkdir(parent, 0777)
@@ -164,20 +165,23 @@ func HttpRequest(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		name = username
 	}
 
-	if r.Header.Get("Depth") == "" { // Browser Check?
+	if r.Header.Get("Translate") != "f" { // Browser Check?
 		if r.Method == http.MethodGet {
+			path := filepath.Join(*fileDirectory, name, r.URL.Path)
 			// Check Request File
-			requestFile, err := os.Stat(filepath.Join(parent, r.URL.Path))
+			requestFile, err := os.Stat(path)
 			if err != nil {
 				log.Printf("Failed Read Directory/File(%s): %v", filepath.Join(*configs, "template.html"), err)
 				http.Error(w, "Failed Read Dir/File", http.StatusNotFound)
+				return
 			}
 
 			// Read Directory
 			if requestFile.IsDir() {
-				files, err := os.ReadDir(filepath.Join(parent, r.URL.Path))
+				files, err := os.ReadDir(path)
 				if err != nil {
 					log.Printf("Failed Read Directory(%s): %v", filepath.Join(*configs, "template.html"), err)
 					http.Error(w, "Failed Read Dir/File", http.StatusNotFound)
@@ -198,12 +202,13 @@ func HttpRequest(w http.ResponseWriter, r *http.Request) {
 				})
 				// Directory Files
 				for _, f := range files {
-					fileStatus, _ := os.Stat(filepath.Join(parent, r.URL.Path, f.Name()))
+					fileStatus, _ := os.Stat(filepath.Join(path, f.Name()))
 					fileInfo := File{
 						Name:      f.Name(),
 						Path:      filepath.Join(r.URL.Path, f.Name()),
 						Extension: filepath.Ext(f.Name()),
 						Date:      fileStatus.ModTime().Format("2006/01/02-15:04:05"),
+						Size:      fileStatus.Size(),
 					}
 					if f.IsDir() {
 						fileInfo.Name += "/"
@@ -228,7 +233,7 @@ func HttpRequest(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Not Directory
-			f, err := os.ReadFile(filepath.Join(parent, r.URL.Path))
+			f, err := os.ReadFile(path)
 			if err != nil {
 				log.Printf("Failed Read File(%s): %v", filepath.Join(*configs, "template.html"), err)
 				http.Error(w, "Failed Read Dir/File", http.StatusNotFound)
@@ -237,9 +242,12 @@ func HttpRequest(w http.ResponseWriter, r *http.Request) {
 			w.Header().Add("Content-Type", "application/force-download")
 			w.Header().Add("Content-Length", fmt.Sprintf("%d", len(f)))
 			w.Header().Add("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filepath.Base(r.URL.Path)))
+			w.WriteHeader(200)
 			w.Write(f)
 			return
 		}
+	} else {
+		r.URL.Path = filepath.Join(name, r.URL.Path)
 	}
 
 	webdavHandler.ServeHTTP(w, r)
