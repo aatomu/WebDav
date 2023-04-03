@@ -264,8 +264,10 @@ func HttpRequest(w http.ResponseWriter, r *http.Request) {
 			}
 			w.WriteHeader(200)
 			return
+
 		default:
 			log.Println("Unknown Method", r.Method)
+			r.URL.Path = filepath.Join(name, r.URL.Path) // 念のため
 		}
 	} else {
 		r.URL.Path = filepath.Join(name, r.URL.Path)
