@@ -42,15 +42,10 @@ var (
 	httpPort      = flag.Int("http", 80, "HTTP Request Port")
 	httpsPort     = flag.Int("https", 443, "HTTPS Request Port")
 	ssl           = flag.Bool("ssl", false, "Listen HTTPS Request")
-	enableBasic   = flag.Bool("basic", false, "Enable Basic")
+	enableBasic   = flag.Bool("basic", false, "Enable Basic Auth(Access to \"dir/Username/\"")
+	enableShare   = flag.Bool("share", false, "Enable Share Directory(Access to \"dir/\"")
 	// WebDav Config
-	webdavHandler = &webdav.Handler{
-		FileSystem: webdav.Dir(*fileDirectory),
-		LockSystem: webdav.NewMemLS(),
-		Logger: func(r *http.Request, err error) {
-			log.Printf("IP:%s \"%s\" %s, ERR: %v\n", r.RemoteAddr, r.Method, r.URL, err)
-		},
-	}
+	webdavHandler *webdav.Handler
 	// おまけ
 	password        = flag.String("pass", "", "Password to SHA256")
 	maxMemory int64 = *flag.Int64("ram", 512000000, "Post Max")
@@ -63,13 +58,17 @@ func main() {
 		fmt.Printf("%s => %x", *password, sha256.Sum256([]byte(*password)))
 		return
 	}
+	if *enableShare && !*enableBasic {
+		*enableShare = false
+	}
 	fmt.Printf("WebDav Boot Config\n")
 	fmt.Printf("File Directory         : %s\n", *fileDirectory)
 	fmt.Printf("Config Files Directory : %s\n", *configs)
 	fmt.Printf("HTTP Port              : %d\n", *httpPort)
 	fmt.Printf("HTTPS Port             : %d\n", *httpsPort)
 	fmt.Printf("Secure(SSL)            : %t\n", *ssl)
-	fmt.Printf("Basic Authentication   : %t #HTTPSでない場合は不安定です。\n", *ssl)
+	fmt.Printf("Basic Authentication   : %t #HTTPSでない場合は不安定です。\n", *enableBasic)
+	fmt.Printf("Share User Directory   : %t #Required: Basic Auth\n", *enableShare)
 
 	// Check Basic
 	if *enableBasic {
@@ -79,6 +78,14 @@ func main() {
 		}
 	}
 
+	// Webdav Init
+	webdavHandler = &webdav.Handler{
+		FileSystem: webdav.Dir(*fileDirectory),
+		LockSystem: webdav.NewMemLS(),
+		Logger: func(r *http.Request, err error) {
+			log.Printf("IP:%s \"%s\" %s, ERR: %v\n", r.RemoteAddr, r.Method, r.URL, err)
+		},
+	}
 	// HTTP, HTTPS server
 	http.HandleFunc("/", HttpRequest)
 	if *ssl {
@@ -115,7 +122,7 @@ func main() {
 }
 
 func HttpRequest(w http.ResponseWriter, r *http.Request) {
-	name := "Share"
+	name := ""
 	// Basic Auth
 	if *enableBasic {
 		w.Header().Set("WWW-Authenticate", `Basic realm="Check Login User"`)
@@ -157,29 +164,19 @@ func HttpRequest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// create dir
-		parent := filepath.Join(*fileDirectory, username)
-		_, err = os.Stat(parent)
-		if err != nil {
-			err := os.Mkdir(parent, 0777)
+		if !*enableShare {
+			// create dir
+			parent := filepath.Join(*fileDirectory, username)
+			_, err = os.Stat(parent)
 			if err != nil {
-				log.Printf("Failed Create Dir(%s): %v", parent, err)
-				http.Error(w, "Failed Create User Dir", http.StatusUnauthorized)
-				return
+				err := os.Mkdir(parent, 0777)
+				if err != nil {
+					log.Printf("Failed Create Dir(%s): %v", parent, err)
+					http.Error(w, "Failed Create User Dir", http.StatusUnauthorized)
+					return
+				}
 			}
-		}
-		name = username
-	} else {
-		// No User Mode(No Basic Auth Mode)
-		parent := filepath.Join(*fileDirectory, name)
-		_, err := os.Stat(parent)
-		if err != nil {
-			err := os.Mkdir(parent, 0777)
-			if err != nil {
-				log.Printf("Failed Create Dir(%s): %v", parent, err)
-				http.Error(w, "Failed Create User Dir", http.StatusUnauthorized)
-				return
-			}
+			name = username
 		}
 	}
 
