@@ -1,0 +1,8 @@
+{
+  "directory": "./files/",
+  "httpPort": 80,
+  "httpsPort": 8080,
+  "ssl": false,
+  "basicAuth": false,
+  "shareDirectory": false
+}

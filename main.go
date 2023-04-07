@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -17,8 +18,13 @@ import (
 	"golang.org/x/net/webdav"
 )
 
-type Users struct {
-	Users []User `json:"Users"`
+type Config struct {
+	Directory      string `json:"directory"`
+	HttpPort       int    `json:"httpPort"`
+	HttpsPort      int    `json:"httpsPort"`
+	SSL            bool   `json:"ssl"`
+	BasicAuth      bool   `json:"basicAuth"`
+	ShareDirectory bool   `json:"shareDirectory"`
 }
 
 type User struct {
@@ -35,15 +41,19 @@ type File struct {
 	Size      int64  `json:"size"`
 }
 
+type LogLevel int
+
+const (
+	Info LogLevel = iota
+	Warn
+	Error
+	Panic
+)
+
 var (
-	// WebDav Config
-	fileDirectory = flag.String("dir", "./files", "File Directory")
-	configs       = flag.String("config", "./config", "Config Files Directory")
-	httpPort      = flag.Int("http", 80, "HTTP Request Port")
-	httpsPort     = flag.Int("https", 443, "HTTPS Request Port")
-	ssl           = flag.Bool("ssl", false, "Listen HTTPS Request")
-	enableBasic   = flag.Bool("basic", false, "Enable Basic Auth(Access to \"dir/Username/\"")
-	enableShare   = flag.Bool("share", false, "Enable Share Directory(Access to \"dir/\"")
+	// Config
+	settings = flag.String("settings", "./settings", "Settings Directory Path")
+	config   Config
 	// WebDav Config
 	webdavHandler *webdav.Handler
 	// おまけ
@@ -58,29 +68,39 @@ func main() {
 		fmt.Printf("%s => %x", *password, sha256.Sum256([]byte(*password)))
 		return
 	}
-	if *enableShare && !*enableBasic {
-		*enableShare = false
+	// Read Config
+	conf, err := os.ReadFile(filepath.Join(*settings, "config.json"))
+	if err != nil {
+		PrintLog(Panic, err.Error())
+		return
+	}
+	json.Unmarshal(conf, &config)
+
+	if config.ShareDirectory && !config.BasicAuth {
+		PrintLog(Panic, "ShareDirectory Required BasicAuth")
+		return
 	}
 	fmt.Printf("WebDav Boot Config\n")
-	fmt.Printf("File Directory         : %s\n", *fileDirectory)
-	fmt.Printf("Config Files Directory : %s\n", *configs)
-	fmt.Printf("HTTP Port              : %d\n", *httpPort)
-	fmt.Printf("HTTPS Port             : %d\n", *httpsPort)
-	fmt.Printf("Secure(SSL)            : %t\n", *ssl)
-	fmt.Printf("Basic Authentication   : %t #HTTPSでない場合は不安定です。\n", *enableBasic)
-	fmt.Printf("Share User Directory   : %t #Required: Basic Auth\n", *enableShare)
+	fmt.Printf("Settings Directory   : %s\n", *settings)
+	fmt.Printf("File Directory       : %s\n", config.Directory)
+	fmt.Printf("HTTP Port            : %d\n", config.HttpPort)
+	fmt.Printf("HTTPS Port           : %d\n", config.HttpsPort)
+	fmt.Printf("Secure(SSL)          : %t\n", config.SSL)
+	fmt.Printf("Basic Authentication : %t #SSL/HTTPS Recommended.\n", config.BasicAuth)
+	fmt.Printf("Share Directory      : %t #Required: BasicAuth\n", config.ShareDirectory)
 
 	// Check Basic
-	if *enableBasic {
-		_, err := os.Stat(filepath.Join(*configs, "users.json"))
+	if config.BasicAuth {
+		_, err := os.Stat(filepath.Join(*settings, "users.json"))
 		if err != nil {
-			log.Fatalf("Failed WebDav Server Boot Prerequisite file(%s): %v", filepath.Join(*configs, "users.json"), err)
+			PrintLog(Panic, "Failed Access Webdav Users File", err)
+			return
 		}
 	}
 
 	// Webdav Init
 	webdavHandler = &webdav.Handler{
-		FileSystem: webdav.Dir(*fileDirectory),
+		FileSystem: webdav.Dir(config.Directory),
 		LockSystem: webdav.NewMemLS(),
 		Logger: func(r *http.Request, err error) {
 			log.Printf("IP:%s \"%s\" %s, ERR: %v\n", r.RemoteAddr, r.Method, r.URL, err)
@@ -88,204 +108,234 @@ func main() {
 	}
 	// HTTP, HTTPS server
 	http.HandleFunc("/", HttpRequest)
-	if *ssl {
-		var isHttpsBoot = true
-		_, err := os.Stat(filepath.Join(*configs, "cert.pem"))
+	if config.SSL {
+		_, err := os.Stat(filepath.Join(*settings, "cert.pem"))
 		if err != nil {
-			log.Printf("Failed WebDav Server Boot Prerequisite file(%s): %v", filepath.Join(*configs, "cert.pem"), err)
-			isHttpsBoot = false
+			PrintLog(Panic, fmt.Sprintf("HTTPS Webdav Server Boot Request File(%s): %s", filepath.Join(*settings, "cert.pem"), err.Error()))
+			return
 		}
-		_, err = os.Stat(filepath.Join(*configs, "key.pem"))
+		_, err = os.Stat(filepath.Join(*settings, "key.pem"))
 		if err != nil {
-			log.Printf("Failed WebDav Server Boot Prerequisite file(%s): %v", filepath.Join(*configs, "key.pem"), err)
-			isHttpsBoot = false
+			PrintLog(Panic, fmt.Sprintf("HTTPS Webdav Server Boot Request File(%s): %s", filepath.Join(*settings, "key.pem"), err.Error()))
+			return
 		}
 
-		if isHttpsBoot {
-			go http.ListenAndServeTLS(fmt.Sprintf(":%d", *httpsPort), "cert.pem", "key.pem", nil)
-			log.Println("HTTP WebDav Server has Boot!")
-		} else {
-			log.Println("Skip HTTPS WebDav Server Boot")
-		}
+		PrintLog(Info, "HTTPS Webdav Server Has Booting..")
+		go func() {
+			err := http.ListenAndServeTLS(fmt.Sprintf(":%d", config.HttpsPort), "cert.pem", "key.pem", nil)
+			if err != nil {
+				PrintLog(Error, "HTTPS Web Server:", err)
+			}
+		}()
 	}
+	log.Println("[Info]", "HTTP Webdav Server Has Booting..")
 	go func() {
-		err := http.ListenAndServe(fmt.Sprintf(":%d", *httpPort), nil)
+		err := http.ListenAndServe(fmt.Sprintf(":%d", config.HttpPort), nil)
 		if err != nil {
-			log.Fatalf("Failed WebDav Server boot: %v", err)
+			PrintLog(Error, "HTTP Web Server:", err)
 		}
 	}()
-	log.Println("HTTP WebDav Server has Boot!")
 
+	// Break Signal
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 	<-sc
 }
 
 func HttpRequest(w http.ResponseWriter, r *http.Request) {
-	name := ""
 	// Basic Auth
-	if *enableBasic {
-		w.Header().Set("WWW-Authenticate", `Basic realm="Check Login User"`)
-		username, password, authOK := r.BasicAuth()
-
-		if !authOK || username == name {
-			http.Error(w, "Not authorized", http.StatusUnauthorized)
+	if config.BasicAuth {
+		ok := BasicAuthSuccess(w, r)
+		if !ok {
 			return
 		}
-
-		// User List
-		jsonData, err := os.ReadFile(filepath.Join(*configs, "users.json"))
+	} else {
+		_, err := os.Stat(config.Directory)
 		if err != nil {
-			log.Printf("Failed Basic Authorized(read file): %v", err)
-			http.Error(w, "Not authorized", http.StatusUnauthorized)
-			return
-		}
-		var config Users
-		err = json.Unmarshal(jsonData, &config)
-		if err != nil {
-			log.Printf("Failed Basic Authorized(json unmarshal): %v", err)
-			http.Error(w, "Not authorized", http.StatusUnauthorized)
-			return
-		}
-
-		hash := fmt.Sprintf("%x", sha256.Sum256([]byte(password)))
-		log.Printf("IP:%s \"LOGIN\" %s:%s\n", r.RemoteAddr, username, hash)
-
-		// Check Auth
-		var isAuthSuccess = false
-		for _, user := range config.Users {
-			if username == user.Name && hash == user.Password {
-				isAuthSuccess = true
-				break
-			}
-		}
-		if !isAuthSuccess {
-			http.Error(w, "Not authorized", http.StatusUnauthorized)
-			return
-		}
-
-		if !*enableShare {
-			// create dir
-			parent := filepath.Join(*fileDirectory, username)
-			_, err = os.Stat(parent)
+			err := os.MkdirAll(config.Directory, 0666)
 			if err != nil {
-				err := os.Mkdir(parent, 0777)
-				if err != nil {
-					log.Printf("Failed Create Dir(%s): %v", parent, err)
-					http.Error(w, "Failed Create User Dir", http.StatusUnauthorized)
-					return
-				}
+				PrintLog(Error, "Failed Create Dir", err)
+				w.WriteHeader(http.StatusUnauthorized)
+				return
 			}
-			name = username
 		}
 	}
 
 	if r.Header.Get("Translate") != "f" { // Browser Check?
-		switch r.Method {
-		case http.MethodGet:
-			path := filepath.Join(*fileDirectory, name, r.URL.Path)
-			if *enableBasic {
-				// Check Request File
-				requestFile, err := os.Stat(path)
-				if err != nil {
-					log.Printf("Failed Read Directory/File(%s): %v", path, err)
-					http.Error(w, "Failed Read Dir/File", http.StatusNotFound)
-					return
-				}
+		responsed := BrowserAccess(w, r)
+		if responsed {
+			return
+		}
+	}
 
-				// Read Directory
-				if requestFile.IsDir() {
-					ReadDirectory(w, r, path)
-					return
-				}
-				// Not Directory
-				DownloadFile(w, r, path)
-			} else {
-				// Check Request File
-				requestFile, err := os.Stat(path)
-				if err != nil {
-					passwords := r.URL.Query()["pass"]
-					if len(passwords) != 1 {
-						log.Printf("Failed Access Directory/File(%s): %v", path, err)
-						http.Error(w, "Failed Access Dir/File", http.StatusNotFound)
-					}
-					path = fmt.Sprintf("%s__%s", path, passwords[0])
-					DownloadFile(w, r, path)
-					return
-				}
+	webdavHandler.ServeHTTP(w, r)
+}
 
-				// Read Directory
-				if requestFile.IsDir() {
-					ReadDirectory(w, r, path)
-					return
-				}
-				// Not Directory
-				log.Printf("Failed Access Directory/File(%s): %v", path, err)
-				http.Error(w, "Failed Access Dir/File", http.StatusNotFound)
+func BasicAuthSuccess(w http.ResponseWriter, r *http.Request) (responsed bool) {
+	// Basic Auth Request
+	w.Header().Set("WWW-Authenticate", `Basic realm="Check Login User"`)
+	username, password, authOK := r.BasicAuth()
+
+	if !authOK {
+		w.WriteHeader(http.StatusUnauthorized)
+		return false
+	}
+
+	// User Check
+	jsonData, err := os.ReadFile(filepath.Join(*settings, "users.json"))
+	if err != nil {
+		PrintLog(Error, "Failed Read Basic Auth Data", err)
+		w.WriteHeader(http.StatusUnauthorized)
+		return false
+	}
+	var Users []User
+	err = json.Unmarshal(jsonData, &Users)
+	if err != nil {
+		PrintLog(Error, "Failed Json Unmarshal Basic Auth Data", err)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(password)))
+	log.Printf("IP:%s \"LOGIN\" %s:%s\n", r.RemoteAddr, username, hash)
+
+	// Check Auth
+	var isAuthSuccess = false
+	for _, user := range Users {
+		if username == user.Name && hash == user.Password {
+			isAuthSuccess = true
+			break
+		}
+	}
+	if !isAuthSuccess {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	if !config.ShareDirectory {
+		// create dir
+		userDir := filepath.Join(config.Directory, username)
+		_, err = os.Stat(userDir)
+		if err != nil {
+			err := os.MkdirAll(userDir, 0666)
+			if err != nil {
+				PrintLog(Error, "Failed Create User Dir", err)
+				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-
-		case http.MethodPost:
-			r.ParseMultipartForm(maxMemory)
-			formItems := r.MultipartForm.File["file"]
-			for i, item := range formItems {
-				src, err := item.Open()
-				if err != nil {
-					log.Printf("Failed Read UploadFile: %+v", item)
-					http.Error(w, "Failed Read UploadFile", http.StatusNoContent)
-					return
-				}
-				defer src.Close()
-
-				savePath := filepath.Join(*fileDirectory, name, r.URL.Path, item.Filename)
-				for i := 1; true; i++ {
-					_, err := os.Stat(savePath)
-					if err != nil {
-						break
-					}
-					savePath = filepath.Join(*fileDirectory, name, r.URL.Path, fmt.Sprintf("%s-%d%s", filepath.Base(item.Filename[:len(item.Filename)-len(filepath.Ext(item.Filename))]), i, filepath.Ext(item.Filename)))
-				}
-				if !*enableBasic {
-					savePath = fmt.Sprintf("%s__%s", savePath, r.MultipartForm.Value["pass"][i])
-				}
-				dst, err := os.Create(savePath)
-				if err != nil {
-					log.Printf("Failed Save UploadFile: %v", item)
-					http.Error(w, "Failed Save UploadFile", http.StatusNoContent)
-					return
-				}
-				defer dst.Close()
-
-				io.Copy(dst, src)
-				log.Println("Upload File is Saved.", savePath)
-			}
-			w.WriteHeader(200)
-			return
-
-		default:
-			log.Println("Unknown Method", r.Method)
-			r.URL.Path = filepath.Join(name, r.URL.Path) // 念のため
 		}
-	} else {
-		r.URL.Path = filepath.Join(name, r.URL.Path)
+		r.URL.Path = path.Join("/", username, r.URL.Path)
 	}
+	return true
+}
 
-	if *enableBasic {
-		webdavHandler.ServeHTTP(w, r)
+func BrowserAccess(w http.ResponseWriter, r *http.Request) (ok bool) {
+	switch r.Method {
+	case http.MethodGet:
+		path := filepath.Join(config.Directory, r.URL.Path)
+		PrintLog(Info, "RequestURL", r.URL.Path, "FilePath", path)
+		if config.BasicAuth {
+			// Check Request File
+			requestFile, err := os.Stat(path)
+			if err != nil {
+				w.WriteHeader(http.StatusNotFound)
+				return true
+			}
+
+			// Read Directory
+			if requestFile.IsDir() {
+				ReadDirectory(w, r, path)
+				return true
+			}
+			// Not Directory
+			DownloadFile(w, r, path)
+		} else {
+			// DownloadCheck
+			passwords := r.URL.Query()["pass"]
+			if len(passwords) > 1 {
+				w.WriteHeader(http.StatusNotAcceptable)
+				return true
+			}
+			if len(passwords) == 0 {
+				DLfilePath := fmt.Sprintf("%s__%s", path, passwords[0])
+				_, err := os.Stat(DLfilePath)
+				if err != nil {
+					w.WriteHeader(http.StatusNotFound)
+					return true
+				}
+
+				DownloadFile(w, r, DLfilePath)
+			}
+
+			// Check Directory
+			requestFile, err := os.Stat(path)
+			if err != nil {
+				w.WriteHeader(http.StatusNotFound)
+				return true
+			}
+
+			// Read Directory
+			if requestFile.IsDir() {
+				ReadDirectory(w, r, path)
+				return true
+			}
+
+			w.WriteHeader(http.StatusNotFound)
+			return true
+		}
+
+	case http.MethodPost:
+		r.ParseMultipartForm(maxMemory)
+		formItems := r.MultipartForm.File["file"]
+		for i, item := range formItems {
+			src, err := item.Open()
+			if err != nil {
+				w.WriteHeader(http.StatusNoContent)
+				continue
+			}
+			defer src.Close()
+
+			saveRoot := filepath.Join(config.Directory, r.URL.Path)
+			savePath := filepath.Join(saveRoot, item.Filename)
+			for i := 1; true; i++ {
+				_, err := os.Stat(savePath)
+				if err != nil {
+					break
+				}
+				savePath = filepath.Join(saveRoot, fmt.Sprintf("%s-%d%s", filepath.Base(item.Filename[:len(item.Filename)-len(filepath.Ext(item.Filename))]), i, filepath.Ext(item.Filename)))
+			}
+			if !config.BasicAuth {
+				savePath = fmt.Sprintf("%s__%s", savePath, r.MultipartForm.Value["pass"][i])
+			}
+			dst, err := os.Create(savePath)
+			if err != nil {
+				PrintLog(Error, "Failed Save Upload File", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				continue
+			}
+			defer dst.Close()
+
+			io.Copy(dst, src)
+			log.Println("Upload File is Saved.", savePath)
+		}
+		return true
+
+	default:
+		log.Println("Unknown Method?", r.Method)
+		return false
 	}
+	return false // Dont come this line
 }
 
 func DownloadFile(w http.ResponseWriter, r *http.Request, path string) {
 	f, err := os.ReadFile(path)
 	if err != nil {
-		log.Printf("Failed Read File: %v", err)
-		http.Error(w, "Failed Read Dir/File", http.StatusNotFound)
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 	w.Header().Add("Content-Type", "application/force-download")
 	w.Header().Add("Content-Length", fmt.Sprintf("%d", len(f)))
 	w.Header().Add("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filepath.Base(r.URL.Path)))
-	w.WriteHeader(200)
 	w.Write(f)
 }
 
@@ -315,14 +365,13 @@ func ReadDirectory(w http.ResponseWriter, r *http.Request, path string) {
 	for _, f := range files {
 		fileStatus, _ := os.Stat(filepath.Join(path, f.Name()))
 		fileName := f.Name()
-		if !*enableBasic {
+		if !config.BasicAuth { // BasicAuthがTrueでなければpassを匿名化
 			names := strings.Split(f.Name(), "__")
 			fileName = strings.Join(names[:len(names)-1], "__")
 		}
 
 		fileInfo := File{
 			Name:      fileName,
-			Path:      filepath.Join(r.URL.Path, fileName),
 			Extension: filepath.Ext(fileName),
 			IsDir:     fileStatus.IsDir(),
 			Date:      fileStatus.ModTime().Format("2006/01/02-15:04:05"),
@@ -337,20 +386,33 @@ func ReadDirectory(w http.ResponseWriter, r *http.Request, path string) {
 	}
 
 	// Result File Create
-	temp, err := os.ReadFile(filepath.Join(*configs, "template.html"))
+	temp, err := os.ReadFile(filepath.Join(*settings, "template.html"))
 	if err != nil {
-		log.Printf("Failed Read File(%s): %v", filepath.Join(*configs, "template.html"), err)
+		log.Printf("Failed Read File(%s): %v", filepath.Join(*settings, "template.html"), err)
 		http.Error(w, "Failed Read Dir/File", http.StatusNotFound)
 		return
 	}
 	indexFile := string(temp)
 	directoryFilesBytes, _ := json.Marshal(directoryFiles)
 	indexFile = strings.Replace(indexFile, "${files}", string(directoryFilesBytes), 1)
-	if *enableBasic {
+	if config.BasicAuth {
 		indexFile = strings.Replace(indexFile, "${files}", "disable", 1)
 	} else {
 		indexFile = strings.Replace(indexFile, "${files}", "", 1)
 	}
 	// Return
 	w.Write([]byte(indexFile))
+}
+
+func PrintLog(level LogLevel, v ...any) {
+	switch level {
+	case Info:
+		log.Println("[Info]", v)
+	case Warn:
+		log.Println("[Warn]", v)
+	case Error:
+		log.Println("[Error]", v)
+	case Panic:
+		log.Panic(v...)
+	}
 }

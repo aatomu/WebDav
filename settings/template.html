@@ -92,7 +92,6 @@
     document.getElementsByName("select").forEach((el) => {
       if (el.checked) {
         document.getElementById("DLmessage").innerHTML = `<a href="${window.location.href}${el.value}?pass=${DLpass}">${window.location.href}${el.value}?pass=${DLpass}</a>`
-        // window.location.href = `${window.location.href}${el.value}?pass=${DLpass}`
       }
     })
   })
@@ -104,7 +103,7 @@
     if (file.isDir) {
       document.getElementById("list").innerHTML += `
     <tr>
-      <td><a href="${file.path}">${file.name}</a></td>
+      <td><a href="${file.name}">${file.name}</a></td>
       <td>${file.extension}</td>
       <td>${file.date}</td>
       <td>${file.size}</td>
@@ -112,7 +111,7 @@
     } else {
       document.getElementById("list").innerHTML += `
     <tr>
-      <td><label><input type="radio" name="select" value="${file.path}">${file.name}</label></td>
+      <td><label><input type="radio" name="select" value="${file.name}">${file.name}</label></td>
       <td>${file.extension}</td>
       <td>${file.date}</td>
       <td>${file.size}</td>
