@@ -103,7 +103,11 @@ func main() {
 		FileSystem: webdav.Dir(config.Directory),
 		LockSystem: webdav.NewMemLS(),
 		Logger: func(r *http.Request, err error) {
-			log.Printf("IP:%s \"%s\" %s, ERR: %v\n", r.RemoteAddr, r.Method, r.URL, err)
+			if err != nil {
+				PrintLog(Info, fmt.Sprintf("IP:%s \"%s\" %s ERR: %s", r.RemoteAddr, r.Method, r.URL, err.Error()))
+			} else {
+				PrintLog(Info, fmt.Sprintf("IP:%s \"%s\" %s", r.RemoteAddr, r.Method, r.URL))
+			}
 		},
 	}
 	// HTTP, HTTPS server
@@ -197,7 +201,7 @@ func BasicAuthSuccess(w http.ResponseWriter, r *http.Request) (responsed bool) {
 	}
 
 	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(password)))
-	log.Printf("IP:%s \"LOGIN\" %s:%s\n", r.RemoteAddr, username, hash)
+	PrintLog(Info, fmt.Sprintf("IP:%s \"LOGIN\" %s:%s", r.RemoteAddr, username, hash))
 
 	// Check Auth
 	var isAuthSuccess = false
@@ -233,7 +237,7 @@ func BrowserAccess(w http.ResponseWriter, r *http.Request) (ok bool) {
 	switch r.Method {
 	case http.MethodGet:
 		path := filepath.Join(config.Directory, r.URL.Path)
-		PrintLog(Info, "RequestURL", r.URL.Path, "FilePath", path)
+		PrintLog(Info, fmt.Sprintf("RequestURL:\"%s\" FilePath:\"%s\"", r.URL.Path, path))
 		if config.BasicAuth {
 			// Check Request File
 			requestFile, err := os.Stat(path)
