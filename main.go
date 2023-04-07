@@ -260,7 +260,7 @@ func BrowserAccess(w http.ResponseWriter, r *http.Request) (ok bool) {
 				w.WriteHeader(http.StatusNotAcceptable)
 				return true
 			}
-			if len(passwords) == 0 {
+			if len(passwords) == 1 {
 				DLfilePath := fmt.Sprintf("%s__%s", path, passwords[0])
 				_, err := os.Stat(DLfilePath)
 				if err != nil {
