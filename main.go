@@ -1,11 +1,14 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
 	"crypto/sha256"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -104,9 +107,9 @@ func main() {
 		LockSystem: webdav.NewMemLS(),
 		Logger: func(r *http.Request, err error) {
 			if err != nil {
-				PrintLog(Info, fmt.Sprintf("IP:%s \"%s\" %s ERR: %s", r.RemoteAddr, r.Method, r.URL, err.Error()))
+				PrintLog(Info, fmt.Sprintf("Webdav IP:%s \"%s\" %s ERR: %s", r.RemoteAddr, r.Method, r.URL, err.Error()))
 			} else {
-				PrintLog(Info, fmt.Sprintf("IP:%s \"%s\" %s", r.RemoteAddr, r.Method, r.URL))
+				PrintLog(Info, fmt.Sprintf("Webdav IP:%s \"%s\" %s", r.RemoteAddr, r.Method, r.URL))
 			}
 		},
 	}
@@ -239,6 +242,12 @@ func BrowserAccess(w http.ResponseWriter, r *http.Request) (ok bool) {
 		path := filepath.Join(config.Directory, r.URL.Path)
 		PrintLog(Info, fmt.Sprintf("RequestURL:\"%s\" FilePath:\"%s\"", r.URL.Path, path))
 		if config.BasicAuth {
+			// DownloadCheck
+			passwords := r.URL.Query()["pass"]
+			if len(passwords) == 1 {
+				DownloadFile(w, r, path)
+				return true
+			}
 			// Check Request File
 			requestFile, err := os.Stat(path)
 			if err != nil {
@@ -252,14 +261,15 @@ func BrowserAccess(w http.ResponseWriter, r *http.Request) (ok bool) {
 				return true
 			}
 			// Not Directory
-			DownloadFile(w, r, path)
+			file, err := os.ReadFile(path)
+			if err != nil {
+				w.WriteHeader(http.StatusNotFound)
+				return true
+			}
+			w.Write(file)
 		} else {
 			// DownloadCheck
 			passwords := r.URL.Query()["pass"]
-			if len(passwords) > 1 {
-				w.WriteHeader(http.StatusNotAcceptable)
-				return true
-			}
 			if len(passwords) == 1 {
 				DLfilePath := fmt.Sprintf("%s__%s", path, passwords[0])
 				_, err := os.Stat(DLfilePath)
@@ -332,15 +342,81 @@ func BrowserAccess(w http.ResponseWriter, r *http.Request) (ok bool) {
 }
 
 func DownloadFile(w http.ResponseWriter, r *http.Request, path string) {
-	f, err := os.ReadFile(path)
+	acessFileInfo, err := os.Stat(path)
 	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
+
+	var file []byte
+	var fileName string
+	if acessFileInfo.IsDir() {
+		// zip buffer
+		buf := new(bytes.Buffer)
+		zipWriter := zip.NewWriter(buf)
+
+		// get dir items
+		err = filepath.WalkDir(path, func(nowPath string, d fs.DirEntry, _ error) error {
+			zipPath := strings.Replace(nowPath, path, "", 1)
+			if strings.HasPrefix(zipPath, "/") {
+				zipPath = strings.Replace(zipPath, "/", "", 1)
+			}
+
+			info, err := d.Info()
+			if err != nil {
+				return err
+			}
+
+			// CheckDir
+			if d.IsDir() {
+				zipWriter.Create(zipPath)
+			} else {
+				// Set file header
+				head, err := zip.FileInfoHeader(info)
+				if err != nil {
+					return err
+				}
+				head.Name = zipPath
+
+				// Create ziped file data
+				zipdFile, err := zipWriter.CreateHeader(head)
+				if err != nil {
+					return err
+				}
+
+				// Set file data
+				body, err := os.ReadFile(nowPath)
+				if err != nil {
+					return err
+				}
+				zipdFile.Write(body)
+			}
+			return nil
+		})
+		// Walk error
+		if err != nil {
+			fmt.Println(err)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		// Zip to Byte
+		zipWriter.Close()
+		file = buf.Bytes()
+		fileName = fmt.Sprintf("%s.zip", filepath.Base(r.URL.Path))
+	} else {
+		file, err = os.ReadFile(path)
+		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		fileName = filepath.Base(r.URL.Path)
+	}
+
 	w.Header().Add("Content-Type", "application/force-download")
-	w.Header().Add("Content-Length", fmt.Sprintf("%d", len(f)))
-	w.Header().Add("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filepath.Base(r.URL.Path)))
-	w.Write(f)
+	w.Header().Add("Content-Length", fmt.Sprintf("%d", len(file)))
+	w.Header().Add("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", fileName))
+	w.Write(file)
 }
 
 func ReadDirectory(w http.ResponseWriter, r *http.Request, path string) {

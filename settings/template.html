@@ -41,6 +41,7 @@
     <table>
       <thead>
         <tr>
+          <td>Selected</td>
           <td>File Name</td>
           <td>Extension</td>
           <td>Date</td>
@@ -52,10 +53,11 @@
     </table>
     <div>
       <input type="text" id="DLpass" placeholder="Enter File Password">
-      <input type="button" id="download" value="Download"><br>
+      <input type="button" id="download" value="Download">
+    </div>
+    <div>
       Message:<span id="DLmessage"></span>
     </div>
-  </div>
 </body>
 <script>
   // アップロード
@@ -100,23 +102,14 @@
   const files = JSON.parse(index)
   for (i = 0; i < files.length; i++) {
     file = files[i]
-    if (file.isDir) {
-      document.getElementById("list").innerHTML += `
+    document.getElementById("list").innerHTML += `
     <tr>
+      <td><input type="radio" name="select" value="${file.name}"></td>
       <td><a href="${file.name}">${file.name}</a></td>
       <td>${file.extension}</td>
       <td>${file.date}</td>
       <td>${file.size}</td>
     </tr>`
-    } else {
-      document.getElementById("list").innerHTML += `
-    <tr>
-      <td><label><input type="radio" name="select" value="${file.name}">${file.name}</label></td>
-      <td>${file.extension}</td>
-      <td>${file.date}</td>
-      <td>${file.size}</td>
-    </tr>`
-    }
   }
 </script>
 
