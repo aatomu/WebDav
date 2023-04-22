@@ -22,6 +22,8 @@ import (
 )
 
 type Config struct {
+	Customize      string `json:"customize"`
+	Users          string `json:"users"`
 	Directory      string `json:"directory"`
 	HttpPort       int    `json:"httpPort"`
 	HttpsPort      int    `json:"httpsPort"`
@@ -55,8 +57,8 @@ const (
 
 var (
 	// Config
-	settings = flag.String("settings", "./settings", "Settings Directory Path")
-	config   Config
+	configFile = flag.String("config", "./config.json", "Config file Path")
+	config     Config
 	// WebDav Config
 	webdavHandler *webdav.Handler
 	// おまけ
@@ -72,7 +74,7 @@ func main() {
 		return
 	}
 	// Read Config
-	conf, err := os.ReadFile(filepath.Join(*settings, "config.json"))
+	conf, err := os.ReadFile(*configFile)
 	if err != nil {
 		PrintLog(Panic, err.Error())
 		return
@@ -84,7 +86,8 @@ func main() {
 		return
 	}
 	fmt.Printf("WebDav Boot Config\n")
-	fmt.Printf("Settings Directory   : %s\n", *settings)
+	fmt.Printf("Config File          : %s\n", *configFile)
+	fmt.Printf("Customize            : %s\n", config.Customize)
 	fmt.Printf("File Directory       : %s\n", config.Directory)
 	fmt.Printf("HTTP Port            : %d\n", config.HttpPort)
 	fmt.Printf("HTTPS Port           : %d\n", config.HttpsPort)
@@ -94,7 +97,7 @@ func main() {
 
 	// Check Basic
 	if config.BasicAuth {
-		_, err := os.Stat(filepath.Join(*settings, "users.json"))
+		_, err := os.Stat(config.Users)
 		if err != nil {
 			PrintLog(Panic, "Failed Access Webdav Users File", err)
 			return
@@ -116,14 +119,14 @@ func main() {
 	// HTTP, HTTPS server
 	http.HandleFunc("/", HttpRequest)
 	if config.SSL {
-		_, err := os.Stat(filepath.Join(*settings, "cert.pem"))
+		_, err := os.Stat(filepath.Join(config.Customize, "cert.pem"))
 		if err != nil {
-			PrintLog(Panic, fmt.Sprintf("HTTPS Webdav Server Boot Request File(%s): %s", filepath.Join(*settings, "cert.pem"), err.Error()))
+			PrintLog(Panic, fmt.Sprintf("HTTPS Webdav Server Boot Request File(%s): %s", filepath.Join(config.Customize, "cert.pem"), err.Error()))
 			return
 		}
-		_, err = os.Stat(filepath.Join(*settings, "key.pem"))
+		_, err = os.Stat(filepath.Join(config.Customize, "key.pem"))
 		if err != nil {
-			PrintLog(Panic, fmt.Sprintf("HTTPS Webdav Server Boot Request File(%s): %s", filepath.Join(*settings, "key.pem"), err.Error()))
+			PrintLog(Panic, fmt.Sprintf("HTTPS Webdav Server Boot Request File(%s): %s", filepath.Join(config.Customize, "key.pem"), err.Error()))
 			return
 		}
 
@@ -189,7 +192,7 @@ func BasicAuthSuccess(w http.ResponseWriter, r *http.Request) (responsed bool) {
 	}
 
 	// User Check
-	jsonData, err := os.ReadFile(filepath.Join(*settings, "users.json"))
+	jsonData, err := os.ReadFile(config.Users)
 	if err != nil {
 		PrintLog(Error, "Failed Read Basic Auth Data", err)
 		w.WriteHeader(http.StatusUnauthorized)
@@ -466,9 +469,9 @@ func ReadDirectory(w http.ResponseWriter, r *http.Request, path string) {
 	}
 
 	// Result File Create
-	temp, err := os.ReadFile(filepath.Join(*settings, "template.html"))
+	temp, err := os.ReadFile(filepath.Join(config.Customize, "template.html"))
 	if err != nil {
-		log.Printf("Failed Read File(%s): %v", filepath.Join(*settings, "template.html"), err)
+		log.Printf("Failed Read File(%s): %v", filepath.Join(config.Customize, "template.html"), err)
 		http.Error(w, "Failed Read Dir/File", http.StatusNotFound)
 		return
 	}
