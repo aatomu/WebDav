@@ -99,17 +99,28 @@
   })
   // 一覧表示
   const index = `${files}`
-  const files = JSON.parse(index)
-  for (i = 0; i < files.length; i++) {
-    file = files[i]
-    document.getElementById("list").innerHTML += `
-    <tr>
-      <td><input type="radio" name="select" value="${file.name}"></td>
-      <td><a href="${file.name}">${file.name}</a></td>
-      <td>${file.extension}</td>
-      <td>${file.date}</td>
-      <td>${file.size}</td>
-    </tr>`
+  const fileInfo = JSON.parse(index)
+  for (i = 0; i < fileInfo.files.length; i++) {
+    file = fileInfo.files[i]
+    if (fileInfo.auth) {
+      document.getElementById("list").innerHTML += `
+      <tr>
+        <td><input type="radio" name="select" value="${file.name}"></td>
+        <td><a href="${file.name}">${file.name}</a></td>
+        <td>${file.extension}</td>
+        <td>${file.date}</td>
+        <td>${file.size}</td>
+      </tr>`
+    } else {
+      document.getElementById("list").innerHTML += `
+      <tr>
+        <td><input type="radio" name="select" value="${file.name}"></td>
+        <td>${file.name}</td>
+        <td>${file.extension}</td>
+        <td>${file.date}</td>
+        <td>${file.size}</td>
+      </tr>`
+    }
   }
 </script>
 

@@ -37,11 +37,13 @@ type User struct {
 	Password string `json:"password"` // SHA256で暗号化保存すること
 }
 
+type FilesInfo struct {
+	Auth  bool   `json:"auth"`
+	Files []File `json:"files"`
+}
 type File struct {
 	Name      string `json:"name"`
-	Path      string `json:"path"`
 	Extension string `json:"extension"`
-	IsDir     bool   `json:"isDir"`
 	Date      string `json:"date"`
 	Size      int64  `json:"size"`
 }
@@ -429,20 +431,19 @@ func ReadDirectory(w http.ResponseWriter, r *http.Request, path string) {
 		http.Error(w, "Failed Read Dir/File", http.StatusNotFound)
 		return
 	}
-	var directoryFiles []File
+	var filesInfo FilesInfo = FilesInfo{
+		Auth:  config.BasicAuth,
+		Files: []File{},
+	}
 	// Root
-	directoryFiles = append(directoryFiles, File{
+	filesInfo.Files = append(filesInfo.Files, File{
 		Name:      "/",
-		Path:      "/",
 		Extension: "Directory",
-		IsDir:     true,
 	})
 	// Parent
-	directoryFiles = append(directoryFiles, File{
+	filesInfo.Files = append(filesInfo.Files, File{
 		Name:      "../",
-		Path:      "../",
 		Extension: "Directory",
-		IsDir:     true,
 	})
 	// Directory Files
 	for _, f := range files {
@@ -456,7 +457,6 @@ func ReadDirectory(w http.ResponseWriter, r *http.Request, path string) {
 		fileInfo := File{
 			Name:      fileName,
 			Extension: filepath.Ext(fileName),
-			IsDir:     fileStatus.IsDir(),
 			Date:      fileStatus.ModTime().Format("2006/01/02-15:04:05"),
 			Size:      fileStatus.Size(),
 		}
@@ -465,7 +465,7 @@ func ReadDirectory(w http.ResponseWriter, r *http.Request, path string) {
 			fileInfo.Extension = "Directory"
 		}
 
-		directoryFiles = append(directoryFiles, fileInfo)
+		filesInfo.Files = append(filesInfo.Files, fileInfo)
 	}
 
 	// Result File Create
@@ -476,8 +476,8 @@ func ReadDirectory(w http.ResponseWriter, r *http.Request, path string) {
 		return
 	}
 	indexFile := string(temp)
-	directoryFilesBytes, _ := json.Marshal(directoryFiles)
-	indexFile = strings.Replace(indexFile, "${files}", string(directoryFilesBytes), 1)
+	FilesInfoBytes, _ := json.Marshal(filesInfo)
+	indexFile = strings.Replace(indexFile, "${files}", string(FilesInfoBytes), 1)
 	if config.BasicAuth {
 		indexFile = strings.Replace(indexFile, "${files}", "disable", 1)
 	} else {
