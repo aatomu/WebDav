@@ -173,7 +173,7 @@ func HttpRequest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if r.Header.Get("Translate") != "f" { // Browser Check?
+	if r.Header.Get("Translate") != "f" && r.Header.Get("Depth") == "" { // Browser Check?
 		BrowserAccess(w, r)
 		return
 	}
