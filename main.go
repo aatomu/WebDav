@@ -354,6 +354,8 @@ func DownloadFile(w http.ResponseWriter, r *http.Request, path string) {
 		return
 	}
 
+	// 処理中
+	w.WriteHeader(http.StatusAccepted)
 	var file []byte
 	var fileName string
 	if acessFileInfo.IsDir() {
