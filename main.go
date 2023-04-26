@@ -249,7 +249,7 @@ func BrowserAccess(w http.ResponseWriter, r *http.Request) {
 			// DownloadCheck
 			passwords := r.URL.Query()["pass"]
 			if len(passwords) == 1 {
-				go DownloadFile(w, r, path)
+				DownloadFile(w, r, path)
 				return
 			}
 			// Check Request File
@@ -284,7 +284,7 @@ func BrowserAccess(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			go DownloadFile(w, r, DLfilePath)
+			DownloadFile(w, r, DLfilePath)
 			return
 		}
 
@@ -354,8 +354,6 @@ func DownloadFile(w http.ResponseWriter, r *http.Request, path string) {
 		return
 	}
 
-	// 処理中
-	w.WriteHeader(http.StatusAccepted)
 	var file []byte
 	var fileName string
 	if acessFileInfo.IsDir() {
@@ -364,6 +362,7 @@ func DownloadFile(w http.ResponseWriter, r *http.Request, path string) {
 		zipWriter := zip.NewWriter(buf)
 
 		// get dir items
+		log.Println("Start Read File to Zip")
 		err = filepath.WalkDir(path, func(nowPath string, d fs.DirEntry, _ error) error {
 			zipPath := strings.Replace(nowPath, path, "", 1)
 			if strings.HasPrefix(zipPath, "/") {
@@ -401,6 +400,8 @@ func DownloadFile(w http.ResponseWriter, r *http.Request, path string) {
 			}
 			return nil
 		})
+		log.Println("End Read File to Zip")
+
 		// Walk error
 		if err != nil {
 			fmt.Println(err)
@@ -408,10 +409,12 @@ func DownloadFile(w http.ResponseWriter, r *http.Request, path string) {
 			return
 		}
 
+		log.Println("Start Zip File to Bytes")
 		// Zip to Byte
 		zipWriter.Close()
 		file = buf.Bytes()
 		fileName = fmt.Sprintf("%s.zip", filepath.Base(r.URL.Path))
+		log.Println("End Zip File to Bytes")
 	} else {
 		file, err = os.ReadFile(path)
 		if err != nil {
