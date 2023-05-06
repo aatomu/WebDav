@@ -174,8 +174,10 @@ func HttpRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Header.Get("Translate") != "f" && r.Header.Get("Depth") == "" { // Browser Check?
-		BrowserAccess(w, r)
-		return
+		isSuccess := BrowserAccess(w, r)
+		if isSuccess {
+			return
+		}
 	}
 
 	webdavHandler.ServeHTTP(w, r)
@@ -239,7 +241,7 @@ func BasicAuthSuccess(w http.ResponseWriter, r *http.Request) (responsed bool) {
 	return true
 }
 
-func BrowserAccess(w http.ResponseWriter, r *http.Request) {
+func BrowserAccess(w http.ResponseWriter, r *http.Request) (isSuccess bool) {
 	switch r.Method {
 	case http.MethodGet:
 		path := filepath.Join(config.Directory, r.URL.Path)
@@ -250,19 +252,19 @@ func BrowserAccess(w http.ResponseWriter, r *http.Request) {
 			passwords := r.URL.Query()["pass"]
 			if len(passwords) == 1 {
 				DownloadFile(w, r, path)
-				return
+				break
 			}
 			// Check Request File
 			requestFile, err := os.Stat(path)
 			if err != nil {
 				w.WriteHeader(http.StatusNotFound)
-				return
+				break
 			}
 
 			// Read Directory
 			if requestFile.IsDir() {
 				ReadDirectory(w, r, path)
-				return
+				break
 			}
 			// Not Directory
 			file, err := os.ReadFile(path)
@@ -271,7 +273,7 @@ func BrowserAccess(w http.ResponseWriter, r *http.Request) {
 			}
 			w.Write(file)
 
-			return
+			break
 		}
 
 		// DownloadCheck
@@ -281,28 +283,27 @@ func BrowserAccess(w http.ResponseWriter, r *http.Request) {
 			_, err := os.Stat(DLfilePath)
 			if err != nil {
 				w.WriteHeader(http.StatusNotFound)
-				return
+				break
 			}
 
 			DownloadFile(w, r, DLfilePath)
-			return
+			break
 		}
 
 		// Check Directory
 		requestFile, err := os.Stat(path)
 		if err != nil {
 			w.WriteHeader(http.StatusNotFound)
-			return
+			break
 		}
 
 		// Read Directory
 		if requestFile.IsDir() {
 			ReadDirectory(w, r, path)
-			return
+			break
 		}
 
 		w.WriteHeader(http.StatusNotFound)
-		return
 
 	case http.MethodPost:
 		r.ParseMultipartForm(maxMemory)
@@ -338,13 +339,11 @@ func BrowserAccess(w http.ResponseWriter, r *http.Request) {
 			io.Copy(dst, src)
 			log.Println("Upload File is Saved.", savePath)
 		}
-		return
 
 	default:
-		log.Println("Unknown Method?", r.Method)
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
+		return false
 	}
+	return true
 }
 
 func DownloadFile(w http.ResponseWriter, r *http.Request, path string) {
