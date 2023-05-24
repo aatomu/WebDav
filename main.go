@@ -375,28 +375,29 @@ func DownloadFile(w http.ResponseWriter, r *http.Request, path string) {
 
 			// CheckDir
 			if d.IsDir() {
-				zipWriter.Create(zipPath)
-			} else {
-				// Set file header
-				head, err := zip.FileInfoHeader(info)
-				if err != nil {
-					return err
-				}
-				head.Name = zipPath
-
-				// Create ziped file data
-				zipdFile, err := zipWriter.CreateHeader(head)
-				if err != nil {
-					return err
-				}
-
-				// Set file data
-				body, err := os.ReadFile(nowPath)
-				if err != nil {
-					return err
-				}
-				zipdFile.Write(body)
+				return nil
 			}
+
+			// Set file header
+			head, err := zip.FileInfoHeader(info)
+			if err != nil {
+				return err
+			}
+			head.Name = zipPath
+
+			// Create ziped file data
+			zipdFile, err := zipWriter.CreateHeader(head)
+			if err != nil {
+				return err
+			}
+
+			// Set file data
+			body, err := os.ReadFile(nowPath)
+			if err != nil {
+				return err
+			}
+			zipdFile.Write(body)
+
 			return nil
 		})
 		log.Println("End Read File to Zip")
