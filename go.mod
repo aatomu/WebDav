@@ -1,4 +1,4 @@
-module github.com/atomu21263/WebDav
+module github.com/aatomu/WebDav
 
 go 1.20
 
