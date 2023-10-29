@@ -25,6 +25,17 @@
     thead {
       background-color: #333;
       color: #fff;
+      text-align: center;
+    }
+
+    .select {
+      text-align: center;
+    }
+    .name {
+      text-align: right;
+    }
+    .size {
+      text-align: right;
     }
   </style>
 </head>
@@ -43,7 +54,6 @@
         <tr>
           <td>Selected</td>
           <td>File Name</td>
-          <td>Extension</td>
           <td>Date</td>
           <td>Size</td>
         </tr>
@@ -105,20 +115,18 @@
     if (fileInfo.auth) {
       document.getElementById("list").innerHTML += `
       <tr>
-        <td><input type="radio" name="select" value="${file.name}"></td>
-        <td><a href="./${file.name}">${file.name}</a></td>
-        <td>${file.extension}</td>
+        <td class="select"><input type="radio" name="select" value="${file.name}"></td>
+        <td class="name"><a href="./${file.name}">${file.name}</a></td>
         <td>${file.date}</td>
-        <td>${file.size}</td>
+        <td class="size">${file.size}</td>
       </tr>`
     } else {
       document.getElementById("list").innerHTML += `
       <tr>
-        <td><input type="radio" name="select" value="${file.name}"></td>
-        <td>${file.name}</td>
-        <td>${file.extension}</td>
+        <td class="select"><input type="radio" name="select" value="${file.name}"></td>
+        <td class="name">${file.name}</td>
         <td>${file.date}</td>
-        <td>${file.size}</td>
+        <td class="size">${file.size}</td>
       </tr>`
     }
   }

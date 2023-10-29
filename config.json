@@ -1,6 +1,6 @@
 {
   "customize": "./customize",
-  "users": "./users.json",
+  "users": "./customize/users.json",
   "directory": "./files",
   "httpPort": 80,
   "httpsPort": 8080,
