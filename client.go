@@ -19,19 +19,6 @@ func Browser(w http.ResponseWriter, r *http.Request) (unknownMethod bool) {
 		path := filepath.Join(config.Directory, r.URL.Path)
 		PrintLog(Info, fmt.Sprintf("Method:\"GET\" URL:\"%s\" File Path:\"%s\"", r.URL, path))
 
-		// Check Request File
-		requestFile, err := os.Stat(path)
-		if err != nil {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-
-		// Read Directory
-		if requestFile.IsDir() {
-			ReadDirectory(w, r, path)
-			return
-		}
-
 		// Download
 		passwords := r.URL.Query()["pass"]
 		if len(passwords) == 1 {
@@ -51,6 +38,19 @@ func Browser(w http.ResponseWriter, r *http.Request) (unknownMethod bool) {
 			return
 		}
 
+		// Check Request File
+		requestFile, err := os.Stat(path)
+		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		// Read Directory
+		if requestFile.IsDir() {
+			ReadDirectory(w, r, path)
+			return
+		}
+
 		// Open File
 		if config.BasicAuth {
 			file, err := os.ReadFile(path)
@@ -60,8 +60,8 @@ func Browser(w http.ResponseWriter, r *http.Request) (unknownMethod bool) {
 			w.Write(file)
 			return
 		}
-
 		w.WriteHeader(http.StatusNotFound)
+		return
 
 	case http.MethodPost:
 		r.ParseMultipartForm(maxMemory)
@@ -126,7 +126,7 @@ func ReadDirectory(w http.ResponseWriter, r *http.Request, path string) {
 		fileInfo := File{
 			Name: fileName,
 			Date: fileStatus.ModTime().Format("2006/01/02-15:04:05"),
-			Size: formatBytes(fileStatus.Size()),
+			Size: FormatBytes(fileStatus.Size()),
 		}
 		if f.IsDir() {
 			fileInfo.Name += "/"
@@ -239,7 +239,7 @@ func DownloadFile(w http.ResponseWriter, r *http.Request, path string) {
 	w.Write(file)
 }
 
-func formatBytes(value int64) (result string) {
+func FormatBytes(value int64) (result string) {
 	unit := []string{"B", "KB", "MB", "GB", "TB"}
 
 	for i := 0; i < len(unit); i++ {
