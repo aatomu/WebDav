@@ -8,6 +8,8 @@ github.com/aatomu/atomicgo v1.0.1-0.20231103150505-81252ace9eec h1:ql62VO8rmAWwa
 github.com/aatomu/atomicgo v1.0.1-0.20231103150505-81252ace9eec/go.mod h1:1B5llhTi34KrNWQBRa2VwaPUPFoBGa8DF+dCCP30Qf4=
 github.com/aatomu/atomicgo v1.0.1-0.20231103151044-91f0592312ff h1:S6El61bpi8sDDk79REjlqu6vpoBDMpJBBAlswmbNn/8=
 github.com/aatomu/atomicgo v1.0.1-0.20231103151044-91f0592312ff/go.mod h1:1B5llhTi34KrNWQBRa2VwaPUPFoBGa8DF+dCCP30Qf4=
+github.com/aatomu/atomicgo v1.0.1-0.20231103181620-7672796349df h1:bkybwfAyV2/iGpHf1dbBjOb1aryGfkwXN2kyvfj/Xpc=
+github.com/aatomu/atomicgo v1.0.1-0.20231103181620-7672796349df/go.mod h1:1B5llhTi34KrNWQBRa2VwaPUPFoBGa8DF+dCCP30Qf4=
 github.com/azr/backoff v0.0.0-20160115115103-53511d3c7330 h1:ekDALXAVvY/Ub1UtNta3inKQwZ/jMB/zpOtD8rAYh78=
 github.com/azr/backoff v0.0.0-20160115115103-53511d3c7330/go.mod h1:nH+k0SvAt3HeiYyOlJpLLv1HG1p7KWP7qU9QPp2/pCo=
 github.com/dustin/go-jsonpointer v0.0.0-20160814072949-ba0abeacc3dc h1:tP7tkU+vIsEOKiK+l/NSLN4uUtkyuxc6hgYpQeCWAeI=

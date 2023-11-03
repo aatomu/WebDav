@@ -16,28 +16,28 @@ func Authorization(w http.ResponseWriter, r *http.Request) (success bool) {
 	jsonData, err := os.ReadFile(config.Users)
 	if err != nil {
 		PrintLog(Error, "Failed Read Users", err.Error())
-		digest.Require(w, lifetime)
+		digest.Require(r, w)
 		return false
 	}
 	var Users map[string]string // {"Username":"Hash","Username":"Hash",...}
 	err = json.Unmarshal(jsonData, &Users)
 	if err != nil {
 		PrintLog(Error, "Failed Json Unmarshal Users Json", err.Error())
-		digest.Require(w, lifetime)
+		digest.Require(r, w)
 		return false
 	}
 
 	// Check Username
 	user, ok := Users[username]
 	if !ok {
-		digest.Require(w, lifetime)
+		digest.Require(r, w)
 		return false
 	}
 	// Check User
 	ok, _ = digest.Checksum(user, r)
 	if !ok {
 		PrintLog(Info, fmt.Sprintf("IP:\"%s\" Login Failed:\"%s\"", r.RemoteAddr, username))
-		digest.Require(w, lifetime)
+		digest.Require(r, w)
 		return false
 	}
 	PrintLog(Info, fmt.Sprintf("IP:\"%s\" Login:\"%s\"", r.RemoteAddr, username))

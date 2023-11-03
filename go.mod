@@ -3,7 +3,7 @@ module github.com/aatomu/WebDav
 go 1.20
 
 require (
-	github.com/aatomu/atomicgo v1.0.1-0.20231103151044-91f0592312ff
+	github.com/aatomu/atomicgo v1.0.1-0.20231103181620-7672796349df
 	golang.org/x/net v0.14.0
 )
 
