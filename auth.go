@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -10,41 +9,37 @@ import (
 	"path/filepath"
 )
 
-func BasicAuth(w http.ResponseWriter, r *http.Request) (success bool) {
-	// Basic Auth Request
-	w.Header().Set("WWW-Authenticate", `Basic realm="Check Login User"`)
-	username, password, authOK := r.BasicAuth()
-
-	if !authOK {
-		w.WriteHeader(http.StatusUnauthorized)
-		return false
-	}
-
-	// User Check
+func Authorization(w http.ResponseWriter, r *http.Request) (success bool) {
+	// Get Username
+	username := digest.GetUsername(r)
+	// Get Users
 	jsonData, err := os.ReadFile(config.Users)
 	if err != nil {
 		PrintLog(Error, "Failed Read Users", err.Error())
-		w.WriteHeader(http.StatusUnauthorized)
+		digest.Require(w, lifetime)
 		return false
 	}
-	var Users map[string]string // {"Name":"Pass(sha256)","Name":"Pass(sha256)",...}
+	var Users map[string]string // {"Username":"Hash","Username":"Hash",...}
 	err = json.Unmarshal(jsonData, &Users)
 	if err != nil {
-		PrintLog(Error, "Failed Json Unmarshal Basic Auth Data", err.Error())
-		w.WriteHeader(http.StatusUnauthorized)
+		PrintLog(Error, "Failed Json Unmarshal Users Json", err.Error())
+		digest.Require(w, lifetime)
 		return false
 	}
 
-	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(password)))
-
-	// Check Auth
-	savedPass := Users[username]
-	if savedPass != hash {
-		w.WriteHeader(http.StatusUnauthorized)
-		PrintLog(Info, fmt.Sprintf("IP:\"%s\" Login Failed:\"%s:%s\"", r.RemoteAddr, username, hash))
+	// Check Username
+	user, ok := Users[username]
+	if !ok {
+		digest.Require(w, lifetime)
 		return false
 	}
-	PrintLog(Info, fmt.Sprintf("IP:\"%s\" Login:\"%s:%s\"", r.RemoteAddr, username, hash))
+	// Check User
+	ok, _ = digest.Checksum(user, r)
+	if !ok {
+		PrintLog(Info, fmt.Sprintf("IP:\"%s\" Login Failed:\"%s\"", r.RemoteAddr, username))
+		return false
+	}
+	PrintLog(Info, fmt.Sprintf("IP:\"%s\" Login:\"%s\"", r.RemoteAddr, username))
 
 	if !config.ShareDirectory {
 		// Create user Dir

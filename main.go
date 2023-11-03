@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/sha256"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -11,7 +10,9 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
+	"github.com/aatomu/atomicgo/netapi"
 	"golang.org/x/net/webdav"
 )
 
@@ -22,7 +23,7 @@ type Config struct {
 	HttpPort       int    `json:"httpPort"`
 	HttpsPort      int    `json:"httpsPort"`
 	SSL            bool   `json:"ssl"`
-	BasicAuth      bool   `json:"basicAuth"`
+	Authorization  bool   `json:"authorization"`
 	ShareDirectory bool   `json:"shareDirectory"`
 }
 
@@ -49,17 +50,22 @@ var (
 	configFile = flag.String("config", "./config.json", "Config file Path")
 	config     Config
 	maxMemory  int64 = *flag.Int64("ram", 512000000, "Post Max")
+	digest           = netapi.DigestAuthNew("Required Username,Password")
+	lifetime         = 240 * time.Hour
 	// WebDav Config
 	webdavHandler *webdav.Handler
 	// おまけ
-	password = flag.String("pass", "", "Password to SHA256")
+	user     = flag.String("user", "", "Username&Password to MD5Hash")
+	password = flag.String("pass", "", "Username&Password to MD5Hash")
 )
 
 func main() {
 	// Flag Parse and View
 	flag.Parse()
-	if *password != "" {
-		fmt.Printf("%s => %x", *password, sha256.Sum256([]byte(*password)))
+	if *user != "" && *password != "" {
+		fmt.Printf("Username : %s\n", *user)
+		fmt.Printf("Password : %s\n", *password)
+		fmt.Printf("Hash     : %s\n", digest.NewUser(*user, *password))
 		return
 	}
 	// Read Config
@@ -70,8 +76,8 @@ func main() {
 	}
 	json.Unmarshal(conf, &config)
 
-	if config.ShareDirectory && !config.BasicAuth {
-		PrintLog(Panic, "ShareDirectory Required BasicAuth")
+	if config.ShareDirectory && !config.Authorization {
+		PrintLog(Panic, "ShareDirectory Required Authorization")
 		return
 	}
 	fmt.Printf("====================WebDav Boot Config====================\n")
@@ -81,12 +87,12 @@ func main() {
 	fmt.Printf("HTTP Port            : %d\n", config.HttpPort)
 	fmt.Printf("HTTPS Port           : %d\n", config.HttpsPort)
 	fmt.Printf("Secure(SSL)          : %t\n", config.SSL)
-	fmt.Printf("Basic Authentication : %t #SSL/HTTPS Required\n", config.BasicAuth)
-	fmt.Printf("Share Directory      : %t #Required: BasicAuth\n", config.ShareDirectory)
+	fmt.Printf("Basic Authentication : %t #SSL/HTTPS Required\n", config.Authorization)
+	fmt.Printf("Share Directory      : %t #Required: Authorization\n", config.ShareDirectory)
 	fmt.Printf("==========================================================\n")
 
 	// Check Basic
-	if config.BasicAuth {
+	if config.Authorization {
 		_, err := os.Stat(config.Users)
 		if err != nil {
 			PrintLog(Panic, "Failed Read Users", err.Error())

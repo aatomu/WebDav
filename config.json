@@ -5,6 +5,6 @@
   "httpPort": 80,
   "httpsPort": 8080,
   "ssl": false,
-  "basicAuth": false,
+  "authorization": false,
   "shareDirectory": false
 }

@@ -23,7 +23,7 @@ func Browser(w http.ResponseWriter, r *http.Request) (unknownMethod bool) {
 		passwords := r.URL.Query()["pass"]
 		if len(passwords) == 1 {
 			// Skip Password
-			if config.BasicAuth {
+			if config.Authorization {
 				DownloadFile(w, r, path)
 				return
 			}
@@ -52,7 +52,7 @@ func Browser(w http.ResponseWriter, r *http.Request) (unknownMethod bool) {
 		}
 
 		// Open File
-		if config.BasicAuth {
+		if config.Authorization {
 			file, err := os.ReadFile(path)
 			if err != nil {
 				w.WriteHeader(http.StatusNotFound)
@@ -83,7 +83,7 @@ func Browser(w http.ResponseWriter, r *http.Request) (unknownMethod bool) {
 				}
 				savePath = filepath.Join(saveRoot, fmt.Sprintf("%s-%d%s", filepath.Base(item.Filename[:len(item.Filename)-len(filepath.Ext(item.Filename))]), i, filepath.Ext(item.Filename)))
 			}
-			if !config.BasicAuth {
+			if !config.Authorization {
 				savePath = fmt.Sprintf("%s__%s", savePath, r.MultipartForm.Value["pass"][i])
 			}
 			dst, err := os.Create(savePath)
@@ -118,7 +118,7 @@ func ReadDirectory(w http.ResponseWriter, r *http.Request, path string) {
 	for _, f := range files {
 		fileStatus, _ := os.Stat(filepath.Join(path, f.Name()))
 		fileName := f.Name()
-		if !config.BasicAuth { // BasicAuthがTrueでなければpassを匿名化
+		if !config.Authorization { // BasicAuthがTrueでなければpassを匿名化
 			names := strings.Split(f.Name(), "__")
 			fileName = strings.Join(names[:len(names)-1], "__")
 		}
@@ -144,7 +144,7 @@ func ReadDirectory(w http.ResponseWriter, r *http.Request, path string) {
 	}
 	indexFile := string(temp)
 	FilesInfoBytes, _ := json.Marshal(FilesInfo{
-		Auth:  config.BasicAuth,
+		Auth:  config.Authorization,
 		Files: Files,
 	})
 	indexFile = strings.Replace(indexFile, "${files}", string(FilesInfoBytes), 1)

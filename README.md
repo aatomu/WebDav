@@ -7,7 +7,7 @@ golang: go version go1.20.1 linux/amd64
 Boot: `go run main.go <flags>`  
 flags:
   * `-config`: webdav config json file path
-  * `-password`: create plain password => sha256ed text
+  * `-user <Username> -pass <Password>`: create user data hash
 
 ### config.json
 ```json
@@ -18,21 +18,16 @@ flags:
   "httpPort": 80,
   "httpsPort": 8080,
   "ssl": false,
-  "basicAuth": false,
+  "authorization": false,
   "shareDirectory": false
 }
 ```
 
 ### users.json
 ```json
-[
-  {
-    "Name": "<UserName>",
-    "Password": "<Password(sha256)>"
-  },
-  {
-    "Name": "<UserName>",
-    "Password": "<Password(sha256)>"
-  }
-]
+{
+  "<UserName>": "<Hash>",
+  "<UserName>": "<Hash>",
+  "<UserName>": "<Hash>",
+}
 ```

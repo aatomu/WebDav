@@ -67,8 +67,8 @@ func RequestHandle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Basic Auth
-	if config.BasicAuth {
-		success := BasicAuth(w, r)
+	if config.Authorization {
+		success := Authorization(w, r)
 		if !success {
 			return
 		}
