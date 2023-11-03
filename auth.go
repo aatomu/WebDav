@@ -37,6 +37,7 @@ func Authorization(w http.ResponseWriter, r *http.Request) (success bool) {
 	ok, _ = digest.Checksum(user, r)
 	if !ok {
 		PrintLog(Info, fmt.Sprintf("IP:\"%s\" Login Failed:\"%s\"", r.RemoteAddr, username))
+		digest.Require(w, lifetime)
 		return false
 	}
 	PrintLog(Info, fmt.Sprintf("IP:\"%s\" Login:\"%s\"", r.RemoteAddr, username))
