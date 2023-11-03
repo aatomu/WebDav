@@ -51,7 +51,6 @@ var (
 	config     Config
 	maxMemory  int64 = *flag.Int64("ram", 512000000, "Post Max")
 	digest           = netapi.DigestAuthNew("Required Username,Password", 6*time.Hour)
-	lifetime         = 240 * time.Hour
 	// WebDav Config
 	webdavHandler *webdav.Handler
 	// おまけ
